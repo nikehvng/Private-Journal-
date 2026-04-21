@@ -1,467 +1,163 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="dark">
 <head>
-<meta charset="UTF-8">
-<title>Anki System Level 3.5 PRO</title>
-
-<style>
-:root {
-  --bg:#0f172a;
-  --card:#1e293b;
-  --text:#e2e8f0;
-  --border:#334155;
-}
-
-.light {
-  --bg:#f1f5f9;
-  --card:#ffffff;
-  --text:#0f172a;
-  --border:#cbd5e1;
-}
-
-body {
-  margin:0;
-  font-family:system-ui;
-  display:flex;
-  height:100vh;
-  background:var(--bg);
-  color:var(--text);
-}
-
-aside {
-  width:300px;
-  background:var(--card);
-  padding:10px;
-  overflow:auto;
-  border-right:1px solid var(--border);
-}
-
-main {
-  flex:1;
-  padding:20px;
-  overflow:auto;
-}
-
-button {
-  margin:4px;
-  padding:6px 10px;
-  border:none;
-  border-radius:6px;
-  cursor:pointer;
-  background:var(--border);
-  color:var(--text);
-}
-
-input, textarea {
-  width:100%;
-  margin:5px 0;
-  padding:6px;
-  border-radius:6px;
-  border:1px solid var(--border);
-  background:var(--card);
-  color:var(--text);
-}
-
-.card {
-  background:var(--card);
-  padding:16px;
-  margin:8px 0;
-  border-radius:10px;
-  border:1px solid var(--border);
-  cursor:grab;
-}
-
-.item {
-  cursor:pointer;
-  margin:5px 0;
-  padding:5px;
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:6px;
-}
-
-.hidden { display:none; }
-
-.tag {
-  display:inline-block;
-  padding:2px 6px;
-  margin:2px;
-  border:1px solid var(--border);
-  border-radius:6px;
-  font-size:12px;
-}
-
-/* Heatmap */
-.heat {
-  display:grid;
-  grid-template-columns:repeat(7, 1fr);
-  gap:4px;
-}
-.cell {
-  height:12px;
-  background:#334155;
-  border-radius:2px;
-}
-.cell.active { background:#22c55e; }
-</style>
-</head>
-
-<body>
-
-<aside>
-<button onclick="addSemester()">+ Semester</button>
-<button onclick="startDashboard()">📌 Lernen</button>
-<button onclick="toggleExamMode()">🎯 Prüfungsmodus</button>
-<div id="nav"></div>
-
-<hr>
-
-<h4>🔎 Suche</h4>
-<input id="search" placeholder="Suche Karten..." oninput="renderCards()">
-
-<hr>
-
-<h4>📊 Heatmap</h4>
-<div id="heatmap" class="heat"></div>
-
-<hr>
-
-<h4>🎯 Ziel</h4>
-<div id="goal"></div>
-
-</aside>
-
-<main>
-
-<h2 id="path">Dashboard</h2>
-
-<div class="card" onclick="flipCard()" id="studyCard">
-  <div id="q">Start</div>
-  <div id="a" class="hidden"></div>
-</div>
-
-<button onclick="rate(0)">Again</button>
-<button onclick="rate(3)">Good</button>
-<button onclick="rate(5)">Easy</button>
-
-<div id="progress"></div>
-
-<hr>
-
-<h3>Scheduler Timeline</h3>
-<div id="schedule"></div>
-
-<hr>
-
-<h3>🏷️ Tags</h3>
-<input id="tagFilter">
-<div id="tagButtons"></div>
-<button onclick="startDashboard()">Filter</button>
-
-<hr>
-
-<h3>Karten</h3>
-<div id="cards"></div>
-
-<hr>
-
-<h3>Neue Karte</h3>
-<input id="qInput">
-<input id="aInput">
-<input id="tagInput">
-<button onclick="addCard()">Erstellen</button>
-
-</main>
-
-<script>
-
-const DB_KEY = "anki_pro_35";
-
-let State = {
-  session: [],
-  index: 0,
-  flipped: false,
-  examMode: false,
-  goalPerDay: 20
-};
-
-function loadDB(){
-  let db = JSON.parse(localStorage.getItem(DB_KEY));
-  if(!db) return { semesters: [] };
-
-  db.semesters ||= [];
-
-  db.semesters.forEach(s=>{
-    s.modules ||= [];
-    s.modules.forEach(m=>{
-      m.topics ||= [];
-      m.topics.forEach(t=>{
-        t.cards ||= [];
-        t.cards.forEach(c=>{
-          c.tags ||= [];
-          c.next ||= Date.now();
-          c.interval ||= 1;
-          c.ease ||= 2.5;
-        });
-      });
-    });
-  });
-
-  return db;
-}
-
-let DB = loadDB();
-
-function save(){
-  localStorage.setItem(DB_KEY, JSON.stringify(DB));
-  render();
-  renderTags();
-  renderHeatmap();
-  renderSchedule();
-  renderGoal();
-}
-
-/* ================= UTIL ================= */
-
-function allCards(){
-  const out=[];
-  for(const s of DB.semesters){
-    for(const m of (s.modules||[])){
-      for(const t of (m.topics||[])){
-        for(const c of (t.cards||[])){
-          out.push(c);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyFlow | Next-Gen Flashcards</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.3s, color 0.3s; }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .light .glass { background: rgba(0, 0, 0, 0.02); border: 1px solid rgba(0, 0, 0, 0.05); }
+        .card-gradient { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
+    </style>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { darkBg: '#0f172a', lightBg: '#f8fafc' } } }
         }
-      }
-    }
-  }
-  return out;
-}
+    </script>
+</head>
+<body class="bg-darkBg text-slate-200 dark:bg-darkBg dark:text-slate-200 light:bg-lightBg light:text-slate-800 transition-all">
 
-/* ================= SEARCH ================= */
+    <div class="flex h-screen overflow-hidden">
+        <aside class="w-64 glass border-r flex flex-col p-6 gap-8">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 card-gradient rounded-xl flex items-center justify-center">
+                    <i data-lucide="brain-circuit" class="text-white"></i>
+                </div>
+                <span class="text-xl font-bold tracking-tight">StudyFlow</span>
+            </div>
 
-function searchCards(list){
-  const q = document.getElementById("search").value.toLowerCase();
-  if(!q) return list;
-  return list.filter(c => (c.q + c.a).toLowerCase().includes(q));
-}
+            <nav class="flex flex-col gap-2">
+                <button onclick="showSection('learn')" class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 transition group">
+                    <i data-lucide="play-circle" class="group-hover:text-indigo-400"></i> Lernen
+                </button>
+                <button onclick="showSection('semesters')" class="flex items-center gap-3 p-3 rounded-lg bg-indigo-600/20 text-indigo-400">
+                    <i data-lucide="layers"></i> Semester
+                </button>
+                <button class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 transition mt-10">
+                    <i data-lucide="plus-circle"></i> Neues Semester
+                </button>
+            </nav>
 
-/* ================= DRAG & DROP ================= */
+            <div class="mt-auto flex flex-col gap-4">
+                <button onclick="toggleDarkMode()" class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 transition">
+                    <i data-lucide="sun" id="theme-icon"></i> <span id="theme-text">Light Mode</span>
+                </button>
+            </div>
+        </aside>
 
-let dragged=null;
+        <main class="flex-1 overflow-y-auto p-8">
+            
+            <header class="flex justify-between items-center mb-10">
+                <div>
+                    <h1 id="view-title" class="text-3xl font-bold">1. Semester</h1>
+                    <p class="text-slate-400">Deine Module im Überblick</p>
+                </div>
+                <div class="flex gap-4">
+                    <button class="px-4 py-2 glass rounded-lg flex items-center gap-2 hover:border-indigo-500 transition">
+                        <i data-lucide="file-up" class="w-4"></i> NotebookLM Import
+                    </button>
+                </div>
+            </header>
 
-function enableDrag(){
-  document.querySelectorAll(".card").forEach(el=>{
-    el.draggable=true;
+            <div id="content-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div onclick="drillDown('Mathematik')" class="glass p-6 rounded-2xl cursor-pointer hover:scale-[1.02] transition-transform border-b-4 border-indigo-500">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="p-3 bg-indigo-500/20 rounded-lg text-indigo-400">
+                            <i data-lucide="function-square"></i>
+                        </div>
+                        <span class="text-xs font-mono opacity-50">12 Themen</span>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Mathematik I</h3>
+                    <div class="w-full bg-white/10 h-1.5 rounded-full mt-4">
+                        <div class="bg-indigo-500 h-1.5 rounded-full" style="width: 45%"></div>
+                    </div>
+                </div>
 
-    el.ondragstart=()=> dragged=el.dataset.id;
+                <div onclick="drillDown('Informatik')" class="glass p-6 rounded-2xl cursor-pointer hover:scale-[1.02] transition-transform border-b-4 border-purple-500">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="p-3 bg-purple-500/20 rounded-lg text-purple-400">
+                            <i data-lucide="code-2"></i>
+                        </div>
+                        <span class="text-xs font-mono opacity-50">8 Themen</span>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Grundlagen Informatik</h3>
+                    <div class="w-full bg-white/10 h-1.5 rounded-full mt-4">
+                        <div class="bg-purple-500 h-1.5 rounded-full" style="width: 70%"></div>
+                    </div>
+                </div>
+            </div>
 
-    el.ondragover=e=>e.preventDefault();
+            <div id="card-editor" class="hidden mt-10">
+                <div class="glass p-8 rounded-3xl max-w-2xl mx-auto border-indigo-500/30 border-2">
+                    <h2 class="text-2xl font-bold mb-6">Neue Karte erstellen</h2>
+                    <div class="space-y-4">
+                        <textarea class="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:ring-2 ring-indigo-500 outline-none" placeholder="Vorderseite (Frage)..."></textarea>
+                        <textarea class="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:ring-2 ring-indigo-500 outline-none" rows="4" placeholder="Rückseite (Antwort)..."></textarea>
+                        
+                        <div class="grid grid-cols-5 gap-2 text-center text-xs">
+                            <div class="p-2 glass rounded border-indigo-500/50">1m</div>
+                            <div class="p-2 glass rounded">10m</div>
+                            <div class="p-2 glass rounded">1h</div>
+                            <div class="p-2 glass rounded">1d</div>
+                            <div class="p-2 glass rounded">3d</div>
+                        </div>
+                        
+                        <div class="flex gap-4 pt-4">
+                            <button class="flex-1 bg-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-500 transition">Speichern</button>
+                            <button onclick="toggleEditor()" class="px-6 py-3 glass rounded-xl">Abbrechen</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-    el.ondrop=()=>{
-      let arr = State.session;
-      let from = arr.findIndex(c=>c.id===dragged);
-      let to = arr.findIndex(c=>c.id===el.dataset.id);
-      if(from>-1 && to>-1){
-        let tmp = arr[from];
-        arr[from]=arr[to];
-        arr[to]=tmp;
-        renderCards();
-      }
-    };
-  });
-}
+        </main>
+    </div>
 
-/* ================= DASHBOARD ================= */
+    <script>
+        lucide.createIcons();
 
-function startDashboard(){
-  const now=Date.now();
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            const icon = document.getElementById('theme-icon');
+            const text = document.getElementById('theme-text');
+            
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                html.classList.add('light');
+                icon.setAttribute('data-lucide', 'moon');
+                text.innerText = 'Dark Mode';
+            } else {
+                html.classList.remove('light');
+                html.classList.add('dark');
+                icon.setAttribute('data-lucide', 'sun');
+                text.innerText = 'Light Mode';
+            }
+            lucide.createIcons();
+        }
 
-  const tags=(document.getElementById("tagFilter").value||"")
-    .split(",").map(x=>x.trim()).filter(Boolean);
+        function drillDown(name) {
+            document.getElementById('view-title').innerText = name;
+            // Hier würde normalerweise das Rendering der Themen-Boxen folgen
+            document.getElementById('content-grid').innerHTML = `
+                <div onclick="toggleEditor()" class="glass border-dashed border-2 border-indigo-500/50 p-10 rounded-2xl flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-indigo-500/10 transition">
+                    <i data-lucide="plus" class="w-10 h-10"></i>
+                    <span class="font-bold text-indigo-400">Neue Karte erstellen</span>
+                </div>
+            `;
+            lucide.createIcons();
+        }
 
-  State.session = searchCards(allCards()).filter(c=>{
-    const tagOk = tags.length===0 || tags.some(t=>c.tags.includes(t));
-    return c.next<=now && tagOk;
-  });
-
-  State.index=0;
-  showCard();
-}
-
-/* ================= CARD ================= */
-
-function showCard(){
-  const c = State.session[State.index];
-
-  if(!c){
-    document.getElementById("q").innerText="Fertig 🎉";
-    document.getElementById("a").classList.add("hidden");
-    return;
-  }
-
-  document.getElementById("q").innerText=c.q;
-  document.getElementById("a").innerText=c.a;
-  document.getElementById("a").classList.add("hidden");
-
-  updateProgress();
-}
-
-/* ================= FLIP ================= */
-
-function flipCard(){
-  document.getElementById("a").classList.toggle("hidden");
-}
-
-/* ================= SM2 ================= */
-
-function review(c,q){
-  if(q<3) c.interval=1;
-  else {
-    c.interval = Math.round(c.interval*c.ease);
-    c.ease = Math.max(1.3,c.ease+(0.1-(5-q)*0.02));
-  }
-  c.next=Date.now()+c.interval*86400000;
-}
-
-/* ================= RATE ================= */
-
-function rate(v){
-  const c=State.session[State.index];
-  if(!c) return;
-
-  review(c,v);
-  State.index++;
-
-  save();
-  showCard();
-}
-
-/* ================= PROGRESS ================= */
-
-function updateProgress(){
-  document.getElementById("progress").innerText =
-    `${State.session.length-State.index} übrig`;
-}
-
-/* ================= TAGS ================= */
-
-function renderTags(){
-  const el=document.getElementById("tagButtons");
-  el.innerHTML="";
-  const set=new Set();
-
-  allCards().forEach(c=>c.tags.forEach(t=>set.add(t)));
-
-  set.forEach(t=>{
-    const b=document.createElement("button");
-    b.className="tag";
-    b.innerText=t;
-    b.onclick=()=> {
-      document.getElementById("tagFilter").value=t;
-      startDashboard();
-    };
-    el.appendChild(b);
-  });
-}
-
-/* ================= CARDS ================= */
-
-function renderCards(){
-  const el=document.getElementById("cards");
-  el.innerHTML="";
-
-  let list = searchCards(allCards());
-
-  list.forEach(c=>{
-    const div=document.createElement("div");
-    div.className="card";
-    div.dataset.id=c.id;
-    div.innerHTML=`<b>${c.q}</b><br>${c.a}<br>${(c.tags||[]).join(", ")}`;
-    el.appendChild(div);
-  });
-
-  enableDrag();
-}
-
-/* ================= HEATMAP ================= */
-
-function renderHeatmap(){
-  const el=document.getElementById("heatmap");
-  el.innerHTML="";
-
-  for(let i=0;i<28;i++){
-    const d=document.createElement("div");
-    d.className="cell";
-    if(Math.random()>0.7) d.classList.add("active");
-    el.appendChild(d);
-  }
-}
-
-/* ================= GOAL ================= */
-
-function renderGoal(){
-  document.getElementById("goal").innerText =
-    `Ziel: ${State.goalPerDay} Karten/Tag`;
-}
-
-/* ================= SCHEDULER ================= */
-
-function renderSchedule(){
-  const el=document.getElementById("schedule");
-  el.innerHTML="";
-
-  allCards()
-    .sort((a,b)=>a.next-b.next)
-    .slice(0,10)
-    .forEach(c=>{
-      const d=document.createElement("div");
-      d.className="item";
-      d.innerText=`${c.q} → ${new Date(c.next).toLocaleDateString()}`;
-      el.appendChild(d);
-    });
-}
-
-/* ================= EXAM MODE ================= */
-
-function toggleExamMode(){
-  State.examMode=!State.examMode;
-  alert(State.examMode?"Prüfungsmodus AN":"AUS");
-}
-
-/* ================= ADD ================= */
-
-function addCard(){
-  const q=document.getElementById("qInput").value;
-  const a=document.getElementById("aInput").value;
-  const tags=document.getElementById("tagInput").value;
-
-  DB.semesters.forEach(s=>{
-    s.modules?.forEach(m=>{
-      m.topics?.forEach(t=>{
-        t.cards.push({
-          id:crypto.randomUUID(),
-          q,a,
-          tags:tags.split(",").map(x=>x.trim()),
-          next:Date.now(),
-          interval:1,
-          ease:2.5
-        });
-      });
-    });
-  });
-
-  save();
-}
-
-/* ================= INIT ================= */
-
-render();
-renderTags();
-renderHeatmap();
-renderSchedule();
-renderGoal();
-
-</script>
-
+        function toggleEditor() {
+            const grid = document.getElementById('content-grid');
+            const editor = document.getElementById('card-editor');
+            grid.classList.toggle('hidden');
+            editor.classList.toggle('hidden');
+        }
+    </script>
 </body>
 </html>
