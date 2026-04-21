@@ -2,29 +2,108 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Anki Pro V3.2</title>
+<title>Anki Pro FINAL</title>
 
 <style>
-:root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; }
-.light { --bg:#f1f5f9; --card:#fff; --text:#0f172a; }
-
-body { margin:0; font-family:system-ui; background:var(--bg); color:var(--text); }
-header { display:flex; justify-content:space-between; padding:1rem; background:var(--card); }
-.layout { display:flex; height:100vh; }
-aside { width:260px; background:var(--card); padding:1rem; }
-main { flex:1; padding:2rem; overflow:auto; }
-
-.card { background:var(--card); padding:2rem; border-radius:12px; margin-bottom:1rem; }
-.hidden { display:none; }
-
-button {
-  margin:4px; padding:8px 12px;
-  border:none; border-radius:8px; cursor:pointer;
+:root {
+  --bg:#0f172a;
+  --card:#1e293b;
+  --text:#e2e8f0;
+  --border:#334155;
 }
 
-textarea { width:100%; height:120px; }
+.light {
+  --bg:#f1f5f9;
+  --card:#ffffff;
+  --text:#0f172a;
+  --border:#cbd5e1;
+}
 
-.progress { margin-top:10px; font-size:14px; opacity:0.8; }
+body {
+  margin:0;
+  font-family:system-ui;
+  background:var(--bg);
+  color:var(--text);
+}
+
+header {
+  display:flex;
+  justify-content:space-between;
+  padding:1rem;
+  background:var(--card);
+  border-bottom:1px solid var(--border);
+}
+
+.layout {
+  display:flex;
+  height:100vh;
+}
+
+aside {
+  width:280px;
+  background:var(--card);
+  padding:1rem;
+  border-right:1px solid var(--border);
+  overflow:auto;
+}
+
+main {
+  flex:1;
+  padding:2rem;
+  overflow:auto;
+}
+
+button {
+  margin:4px;
+  padding:8px 12px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  background:var(--border);
+  color:var(--text);
+}
+
+textarea, input {
+  width:100%;
+  padding:8px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:var(--card);
+  color:var(--text);
+}
+
+.card {
+  background:var(--card);
+  padding:2rem;
+  border-radius:12px;
+  margin-bottom:1rem;
+  border:1px solid var(--border);
+}
+
+.hidden { display:none; }
+
+/* Sidebar */
+.sidebar-item {
+  margin:6px 0;
+  cursor:pointer;
+  user-select:none;
+}
+
+.nested {
+  margin-left:14px;
+  display:none;
+}
+
+.active {
+  display:block;
+}
+
+.cardItem {
+  border:1px solid var(--border);
+  padding:10px;
+  margin:6px 0;
+  border-radius:8px;
+}
 </style>
 </head>
 
@@ -39,18 +118,12 @@ textarea { width:100%; height:120px; }
 
 <aside>
 <button onclick="addSemester()">+ Semester</button>
-<ul id="semesters"></ul>
+<div id="semesters"></div>
 </aside>
 
 <main>
 
 <h3 id="breadcrumb"></h3>
-
-<div id="content"></div>
-
-<hr>
-
-<h2>Lernen</h2>
 
 <div class="card">
 <div id="q">Wähle ein Thema</div>
@@ -63,143 +136,136 @@ textarea { width:100%; height:120px; }
 <button onclick="rate(1)">⚠️ Mittel</button>
 <button onclick="rate(2)">✅ Leicht</button>
 
-<div class="progress" id="progress"></div>
+<div id="progress"></div>
 
 <hr>
 
-<h3>KI-Import (Text oder Datei)</h3>
+<h3>Karten</h3>
+<div id="cardList"></div>
 
-<input type="file" id="fileInput" accept=".txt,.md">
-<br><br>
+<hr>
 
-<textarea id="import"></textarea><br>
-<button onclick="smartImport()">Karten generieren</button>
+<h3>KI Import (Text / Datei)</h3>
+<input type="file" id="fileInput" accept=".txt,.md"><br><br>
+<textarea id="import"></textarea>
+<button onclick="smartImport()">Import</button>
 
 </main>
 </div>
 
 <script>
 
-// ===== DATA =====
-let DB = JSON.parse(localStorage.getItem("ANKI_V32")) || { semesters:[] };
+// ================= DATA =================
+let DB = JSON.parse(localStorage.getItem("ANKI_FINAL")) || { semesters:[] };
+
 let current = {semester:null,module:null,topic:null};
 let studyCards = [];
 let index = 0;
 
-function save(){ localStorage.setItem("ANKI_V32", JSON.stringify(DB)); }
+function save(){
+  localStorage.setItem("ANKI_FINAL", JSON.stringify(DB));
+  renderSemesters();
+}
 
-// ===== THEME =====
+// ================= THEME =================
 function toggleTheme(){
   document.body.classList.toggle("light");
   localStorage.setItem("theme", document.body.className);
 }
 document.body.className = localStorage.getItem("theme") || "";
 
-// ===== NAV =====
+// ================= SIDEBAR =================
 function renderSemesters(){
-  let el=document.getElementById("semesters");
-  el.innerHTML="";
-  DB.semesters.forEach((s,i)=>{
-    let li=document.createElement("li");
-    li.innerText=s.name;
-    li.onclick=()=>selectSemester(i);
-    el.appendChild(li);
+  const el = document.getElementById("semesters");
+  el.innerHTML = "";
+
+  DB.semesters.forEach((s) => {
+
+    const sem = document.createElement("div");
+
+    const semBtn = document.createElement("div");
+    semBtn.className = "sidebar-item";
+    semBtn.innerText = "📚 " + s.name;
+
+    const moduleBox = document.createElement("div");
+    moduleBox.className = "nested";
+
+    semBtn.onclick = () => moduleBox.classList.toggle("active");
+
+    s.modules.forEach((m) => {
+
+      const modBtn = document.createElement("div");
+      modBtn.className = "sidebar-item";
+      modBtn.innerText = "📦 " + m.name;
+
+      const topicBox = document.createElement("div");
+      topicBox.className = "nested";
+
+      modBtn.onclick = (e) => {
+        e.stopPropagation();
+        topicBox.classList.toggle("active");
+      };
+
+      m.topics.forEach((t) => {
+
+        const tBtn = document.createElement("div");
+        tBtn.className = "sidebar-item";
+        tBtn.innerText = "🧠 " + t.name;
+
+        tBtn.onclick = (e) => {
+          e.stopPropagation();
+
+          current.semester = s;
+          current.module = m;
+          current.topic = t;
+
+          updateBreadcrumb();
+          renderCardList();
+          updateProgress();
+          startStudy();
+        };
+
+        topicBox.appendChild(tBtn);
+      });
+
+      moduleBox.appendChild(modBtn);
+      moduleBox.appendChild(topicBox);
+    });
+
+    sem.appendChild(semBtn);
+    sem.appendChild(moduleBox);
+
+    el.appendChild(sem);
   });
 }
 
+// ================= STRUCTURE =================
 function addSemester(){
-  let name=prompt("Semester:");
+  let name = prompt("Semester:");
   if(!name) return;
   DB.semesters.push({name,modules:[]});
-  save(); renderSemesters();
+  save();
 }
 
-function selectSemester(i){
-  current.semester=DB.semesters[i];
-  current.module=null; current.topic=null;
-  updateBreadcrumb(); renderModules();
-}
-
-function renderModules(){
-  let c=document.getElementById("content");
-  c.innerHTML="<h3>Module</h3>";
-
-  current.semester.modules.forEach((m,i)=>{
-    let b=document.createElement("button");
-    b.innerText=m.name;
-    b.onclick=()=>selectModule(i);
-    c.appendChild(b);
-  });
-
-  let add=document.createElement("button");
-  add.innerText="+ Modul";
-  add.onclick=()=>{
-    let name=prompt("Modul:");
-    if(!name) return;
-    current.semester.modules.push({name,topics:[]});
-    save(); renderModules();
-  };
-  c.appendChild(add);
-}
-
-function selectModule(i){
-  current.module=current.semester.modules[i];
-  current.topic=null;
-  updateBreadcrumb(); renderTopics();
-}
-
-function renderTopics(){
-  let c=document.getElementById("content");
-  c.innerHTML="<h3>Themen</h3>";
-
-  current.module.topics.forEach((t,i)=>{
-    let b=document.createElement("button");
-    b.innerText=t.name;
-    b.onclick=()=>selectTopic(i);
-    c.appendChild(b);
-  });
-
-  let add=document.createElement("button");
-  add.innerText="+ Thema";
-  add.onclick=()=>{
-    let name=prompt("Thema:");
-    if(!name) return;
-    current.module.topics.push({name,cards:[]});
-    save(); renderTopics();
-  };
-  c.appendChild(add);
-}
-
-function selectTopic(i){
-  current.topic=current.module.topics[i];
-  updateBreadcrumb(); updateProgress(); startStudy();
-}
-
-function updateBreadcrumb(){
-  document.getElementById("breadcrumb").innerText =
-    `${current.semester?.name||""} > ${current.module?.name||""} > ${current.topic?.name||""}`;
-}
-
-// ===== STUDY =====
+// ================= STUDY =================
 function startStudy(){
   if(!current.topic) return;
 
-  studyCards = current.topic.cards.filter(c=>c.next <= Date.now());
+  studyCards = current.topic.cards.filter(c => c.next <= Date.now());
 
-  if(studyCards.length===0){
-    document.getElementById("q").innerText="Keine fälligen Karten 🎉";
-    document.getElementById("a").innerText="";
+  if(studyCards.length === 0){
+    document.getElementById("q").innerText = "Keine fälligen Karten 🎉";
     return;
   }
 
-  index=0;
+  index = 0;
   showCard();
 }
 
 function showCard(){
-  let c=studyCards[index];
-  document.getElementById("q").innerText=c.q;
-  document.getElementById("a").innerText=c.a;
+  let c = studyCards[index];
+  document.getElementById("q").innerText = c.q;
+  document.getElementById("a").innerText = c.a;
   document.getElementById("a").classList.add("hidden");
 }
 
@@ -208,84 +274,105 @@ function showAnswer(){
 }
 
 function rate(score){
-  let c=studyCards[index];
+  let c = studyCards[index];
 
-  if(!c.ef) c.ef=2.5;
-  if(!c.interval) c.interval=1;
-
-  if(score===0){
-    c.interval=1;
-  } else {
-    c.ef += (0.1 - (2-score)*(0.08 + (2-score)*0.02));
-    if(c.ef<1.3) c.ef=1.3;
-    c.interval = Math.round(c.interval * c.ef);
-  }
+  if(score === 0) c.interval = 1;
+  else c.interval = Math.max(1, (c.interval || 1) * 2);
 
   c.next = Date.now() + c.interval * 86400000;
 
   index++;
-  if(index>=studyCards.length) startStudy();
+  if(index >= studyCards.length) startStudy();
   else showCard();
 
   save();
   updateProgress();
 }
 
-// ===== PROGRESS =====
-function updateProgress(){
-  if(!current.topic) return;
-  let total=current.topic.cards.length;
-  let due=current.topic.cards.filter(c=>c.next <= Date.now()).length;
-  document.getElementById("progress").innerText =
-    `Karten: ${total} | Fällig: ${due}`;
+// ================= CARDS =================
+function renderCardList(){
+  let el = document.getElementById("cardList");
+  el.innerHTML = "";
+
+  current.topic.cards.forEach((c,i) => {
+
+    let div = document.createElement("div");
+    div.className = "cardItem";
+
+    div.innerHTML = `
+      <b>${c.q}</b><br>${c.a}<br>
+      <button onclick="editCard(${i})">✏️</button>
+      <button onclick="deleteCard(${i})">🗑️</button>
+    `;
+
+    el.appendChild(div);
+  });
 }
 
-// ===== FILE IMPORT =====
-document.getElementById("fileInput").addEventListener("change", function(){
-  let file=this.files[0];
-  if(!file) return;
+function editCard(i){
+  let c = current.topic.cards[i];
+  let q = prompt("Frage:", c.q);
+  let a = prompt("Antwort:", c.a);
 
-  let reader=new FileReader();
-  reader.onload=function(e){
+  if(q && a){
+    c.q = q;
+    c.a = a;
+    save();
+    renderCardList();
+  }
+}
+
+function deleteCard(i){
+  if(confirm("Löschen?")){
+    current.topic.cards.splice(i,1);
+    save();
+    renderCardList();
+  }
+}
+
+// ================= PROGRESS =================
+function updateProgress(){
+  let total = current.topic.cards.length;
+  let due = current.topic.cards.filter(c => c.next <= Date.now()).length;
+
+  document.getElementById("progress").innerText =
+    `${due} fällig / ${total} Karten`;
+}
+
+// ================= IMPORT =================
+document.getElementById("fileInput").addEventListener("change", function(){
+  let reader = new FileReader();
+  reader.onload = e => {
     document.getElementById("import").value = e.target.result;
   };
-  reader.readAsText(file);
+  reader.readAsText(this.files[0]);
 });
 
-// ===== SMART KI IMPORT =====
 function smartImport(){
   if(!current.topic){
-    alert("Wähle zuerst ein Thema!");
+    alert("Thema wählen!");
     return;
   }
 
-  let text=document.getElementById("import").value;
+  let text = document.getElementById("import").value;
+  let lines = text.split("\n");
 
-  // Split smarter
-  let blocks=text.split(/\n|\.\s/);
+  lines.forEach(l => {
+    if(l.length < 10) return;
 
-  blocks.forEach(b=>{
-    b=b.trim();
-    if(b.length<15) return;
-
-    if(b.includes("?")){
-      let [q,...rest]=b.split("?");
-      addCard(q+"?", rest.join("?"));
+    if(l.includes("?")){
+      let [q,a] = l.split("?");
+      addCard(q+"?", a);
     }
-    else if(b.includes(":")){
-      let [q,a]=b.split(":");
-      addCard(q, a);
-    }
-    else {
-      // heuristische KI
-      let mid=Math.floor(b.length/2);
-      addCard(b.slice(0,mid), b.slice(mid));
+    else if(l.includes(":")){
+      let [q,a] = l.split(":");
+      addCard(q,a);
     }
   });
 
   save();
+  renderCardList();
   updateProgress();
-  alert("KI-Import fertig 🚀");
 }
 
 function addCard(q,a){
@@ -293,12 +380,11 @@ function addCard(q,a){
     q:q.trim(),
     a:a.trim(),
     next:Date.now(),
-    interval:1,
-    ef:2.5
+    interval:1
   });
 }
 
-// ===== INIT =====
+// ================= INIT =================
 renderSemesters();
 
 </script>
