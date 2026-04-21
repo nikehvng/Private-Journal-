@@ -87,16 +87,16 @@ input, textarea {
 
 <aside>
 <button onclick="addSemester()">+ Semester</button>
-<button onclick="showDue()">📌 Fällige Karten</button>
+<button onclick="showDue()">📌 Dashboard Lernen</button>
 <div id="nav"></div>
 </aside>
 
 <main>
 
-<h2 id="path">Kein Thema gewählt</h2>
+<h2 id="path">Dashboard</h2>
 
 <div class="card">
-<div id="q">Wähle ein Thema</div>
+<div id="q">Wähle „Dashboard Lernen“</div>
 <div id="a" class="hidden"></div>
 </div>
 
@@ -109,7 +109,13 @@ input, textarea {
 
 <hr>
 
-<h3>Karten im Thema</h3>
+<h3>🏷️ Tag Filter</h3>
+<input id="tagFilter" placeholder="z.B. bio,prüfung,lernen">
+<button onclick="showDue()">Filter anwenden</button>
+
+<hr>
+
+<h3>Karten (nur Strukturansicht)</h3>
 <div id="cards"></div>
 
 <hr>
@@ -133,64 +139,45 @@ input, textarea {
 
 <script>
 
-//
-// ======================
-// 🧠 DATA LAYER (NEU)
-// ======================
-//
-
+// ================= DATA =================
 const SCHEMA_VERSION = 1;
 
 function createDB(){
-  return {
-    version: SCHEMA_VERSION,
-    semesters: []
-  };
+  return { version: SCHEMA_VERSION, semesters: [] };
 }
 
-// 🔥 MIGRATION ENGINE (NEU - WICHTIG)
 function loadDB(){
   let raw = localStorage.getItem("anki_full");
-
   if(!raw) return createDB();
 
   let db;
-  try {
-    db = JSON.parse(raw);
-  } catch(e){
-    return createDB();
-  }
+  try { db = JSON.parse(raw); } catch { return createDB(); }
 
   if(!db.version) db.version = 0;
 
   db.semesters = db.semesters || [];
 
   db.semesters.forEach(s=>{
-    if(!s.modules) s.modules = [];
-
+    if(!s.modules) s.modules=[];
     s.modules.forEach(m=>{
-      if(!m.topics) m.topics = [];
-
+      if(!m.topics) m.topics=[];
       m.topics.forEach(t=>{
-        if(!t.cards) t.cards = [];
-
+        if(!t.cards) t.cards=[];
         t.cards.forEach(c=>{
           if(!c.id) c.id = crypto.randomUUID();
           if(!c.interval) c.interval = 1;
           if(!c.next) c.next = Date.now();
+          if(!c.tags) c.tags = [];
         });
       });
     });
   });
 
   db.version = SCHEMA_VERSION;
-
   localStorage.setItem("anki_full", JSON.stringify(db));
-
   return db;
 }
 
-// ================= DATA =================
 let DB = loadDB();
 
 let current = {semester:null,module:null,topic:null};
@@ -235,6 +222,21 @@ function render(){
       mDiv.className="item";
       mDiv.innerText="📦 "+m.name;
 
+      mDiv.ondblclick=()=>{
+        let n=prompt("Modul:",m.name);
+        if(n){ m.name=n; save(); }
+      };
+
+      let delM=document.createElement("button");
+      delM.innerText="🗑️";
+      delM.onclick=(e)=>{
+        e.stopPropagation();
+        s.modules = s.modules.filter(x=>x!==m);
+        save();
+      };
+
+      mDiv.appendChild(delM);
+
       let topicBox=document.createElement("div");
       topicBox.style.display="none";
 
@@ -252,6 +254,21 @@ function render(){
         tDiv.className="item";
         tDiv.innerText="🧠 "+t.name;
 
+        tDiv.ondblclick=()=>{
+          let n=prompt("Thema:",t.name);
+          if(n){ t.name=n; save(); }
+        };
+
+        let delT=document.createElement("button");
+        delT.innerText="🗑️";
+        delT.onclick=(e)=>{
+          e.stopPropagation();
+          m.topics = m.topics.filter(x=>x!==t);
+          save();
+        };
+
+        tDiv.appendChild(delT);
+
         tDiv.onclick=()=>{
           current.semester=s;
           current.module=m;
@@ -267,7 +284,6 @@ function render(){
       addT.onclick=()=>{
         let name=prompt("Thema:");
         if(!name) return;
-        if(!m.topics) m.topics=[];
         m.topics.push({name,cards:[]});
         save();
       };
@@ -283,7 +299,6 @@ function render(){
     addM.onclick=()=>{
       let name=prompt("Modul:");
       if(!name) return;
-      if(!s.modules) s.modules=[];
       s.modules.push({name,topics:[]});
       save();
     };
@@ -304,9 +319,7 @@ function addSemester(){
 
 // ================= UPDATE =================
 function update(){
-  document.getElementById("path").innerText =
-  `${current.semester.name} > ${current.module.name} > ${current.topic.name}`;
-
+  document.getElementById("path").innerText = "Dashboard Lernen";
   renderCards();
   buildStudyQueue();
   updateProgress();
@@ -314,99 +327,67 @@ function update(){
 
 // ================= ADD CARD =================
 function addCard(){
-  if(!current.topic) return alert("Kein Thema");
-
-  if(!current.topic.cards) current.topic.cards=[];
+  if(!current.topic) return alert("Thema wählen");
 
   let q=document.getElementById("qInput").value;
   let a=document.getElementById("aInput").value;
-  if(!q||!a) return;
+  let tags=prompt("Tags (kommagetrennt)", "");
 
   current.topic.cards.push({
     id: crypto.randomUUID(),
     q,a,
+    tags: tags ? tags.split(",").map(t=>t.trim()) : [],
     interval:1,
     next:Date.now()
   });
 
-  document.getElementById("qInput").value="";
-  document.getElementById("aInput").value="";
-
   save();
   renderCards();
-  buildStudyQueue();
 }
 
-// ================= RENDER CARDS =================
+// ================= CARDS =================
 function renderCards(){
   let el=document.getElementById("cards");
   el.innerHTML="";
-  if(!current.topic) return;
 
-  current.topic.cards.forEach((c)=>{
-
-    let div=document.createElement("div");
-    div.className="card";
-
-    div.innerHTML=`
-      <b>${c.q}</b><br>${c.a}
-      <br>
-      <button onclick="editCard('${c.id}')">✏️</button>
-      <button onclick="del('${c.id}')">🗑️</button>
-    `;
-
-    el.appendChild(div);
+  DB.semesters.forEach(s=>{
+    (s.modules||[]).forEach(m=>{
+      (m.topics||[]).forEach(t=>{
+        (t.cards||[]).forEach(c=>{
+          let div=document.createElement("div");
+          div.className="card";
+          div.innerHTML = `<b>${c.q}</b><br>${c.a}<br>${(c.tags||[]).join(", ")}`;
+          el.appendChild(div);
+        });
+      });
+    });
   });
 }
 
-// ================= FIND CARD =================
-function findCard(id){
-  return current.topic.cards.find(c => c.id === id);
-}
-
-// ================= EDIT =================
-function editCard(id){
-  let c=findCard(id);
-  if(!c) return;
-
-  let q=prompt("Frage:",c.q);
-  let a=prompt("Antwort:",c.a);
-
-  if(q&&a){
-    c.q=q;
-    c.a=a;
-    save();
-    renderCards();
-    buildStudyQueue();
-  }
-}
-
-// ================= DELETE =================
-function del(id){
-  current.topic.cards = current.topic.cards.filter(c=>c.id!==id);
-  save();
-  renderCards();
-  buildStudyQueue();
-}
-
-// ================= STUDY QUEUE =================
-function buildStudyQueue(){
-  if(!current.topic) return;
+// ================= DASHBOARD =================
+function showDue(){
+  let el=document.getElementById("cards");
+  el.innerHTML="<h3>📌 Dashboard Lernen</h3>";
 
   let now=Date.now();
 
-  study=current.topic.cards
-    .filter(c=>c.next<=now)
-    .sort((a,b)=>a.next-b.next);
+  let filter=document.getElementById("tagFilter").value?.toLowerCase();
+  let tags=filter ? filter.split(",").map(t=>t.trim()) : null;
+
+  study=[];
+
+  DB.semesters.forEach(s=>{
+    (s.modules||[]).forEach(m=>{
+      (m.topics||[]).forEach(t=>{
+        (t.cards||[]).forEach(c=>{
+          let ok = !tags || tags.some(tg => (c.tags||[]).includes(tg));
+          if(c.next<=now && ok) study.push(c);
+        });
+      });
+    });
+  });
 
   index=0;
-
-  if(study.length===0){
-    document.getElementById("q").innerText="Keine fälligen Karten 🎉";
-    document.getElementById("a").innerText="";
-    return;
-  }
-
   show();
 }
 
@@ -429,86 +410,14 @@ function rate(v){
   let c=study[index];
   if(!c) return;
 
-  if(v===0) c.interval=1;
-  if(v===1) c.interval=Math.max(1,c.interval*2);
-  if(v===2) c.interval=c.interval*3;
-
-  c.next=Date.now()+c.interval*86400000;
+  c.interval = v===0?1:v===1?Math.max(1,c.interval*2):c.interval*3;
+  c.next = Date.now() + c.interval*86400000;
 
   index++;
-
-  if(index>=study.length){
-    buildStudyQueue();
-  } else {
-    show();
-  }
+  if(index>=study.length) showDue();
+  else show();
 
   save();
-  updateProgress();
-}
-
-// ================= PROGRESS =================
-function updateProgress(){
-  if(!current.topic) return;
-
-  let total=current.topic.cards.length;
-  let due=current.topic.cards.filter(c=>c.next<=Date.now()).length;
-
-  document.getElementById("progress").innerText =
-  `${due} fällig / ${total} Karten`;
-}
-
-// ================= FÄLLIGE KARTEN =================
-function showDue(){
-  let el=document.getElementById("cards");
-  el.innerHTML="<h3>📌 Fällige Karten</h3>";
-
-  let now=Date.now();
-
-  DB.semesters.forEach(s=>{
-    (s.modules||[]).forEach(m=>{
-      (m.topics||[]).forEach(t=>{
-        (t.cards||[]).forEach(c=>{
-          if(c.next<=now){
-            let div=document.createElement("div");
-            div.className="card";
-
-            div.innerHTML=`
-              <b>${c.q}</b><br>${c.a}
-              <br>
-              <button onclick="editCard('${c.id}')">✏️</button>
-            `;
-
-            el.appendChild(div);
-          }
-        });
-      });
-    });
-  });
-}
-
-// ================= IMPORT =================
-function smartImport(){
-  if(!current.topic) return;
-
-  let text=document.getElementById("import").value;
-
-  text.split("\n").forEach(l=>{
-    if(l.includes("?")){
-      let [q,a]=l.split("?");
-      current.topic.cards.push({
-        id: crypto.randomUUID(),
-        q:q+"?",
-        a,
-        interval:1,
-        next:Date.now()
-      });
-    }
-  });
-
-  save();
-  renderCards();
-  buildStudyQueue();
 }
 
 // ================= INIT =================
