@@ -133,8 +133,65 @@ input, textarea {
 
 <script>
 
+//
+// ======================
+// 🧠 DATA LAYER (NEU)
+// ======================
+//
+
+const SCHEMA_VERSION = 1;
+
+function createDB(){
+  return {
+    version: SCHEMA_VERSION,
+    semesters: []
+  };
+}
+
+// 🔥 MIGRATION ENGINE (NEU - WICHTIG)
+function loadDB(){
+  let raw = localStorage.getItem("anki_full");
+
+  if(!raw) return createDB();
+
+  let db;
+  try {
+    db = JSON.parse(raw);
+  } catch(e){
+    return createDB();
+  }
+
+  if(!db.version) db.version = 0;
+
+  db.semesters = db.semesters || [];
+
+  db.semesters.forEach(s=>{
+    if(!s.modules) s.modules = [];
+
+    s.modules.forEach(m=>{
+      if(!m.topics) m.topics = [];
+
+      m.topics.forEach(t=>{
+        if(!t.cards) t.cards = [];
+
+        t.cards.forEach(c=>{
+          if(!c.id) c.id = crypto.randomUUID();
+          if(!c.interval) c.interval = 1;
+          if(!c.next) c.next = Date.now();
+        });
+      });
+    });
+  });
+
+  db.version = SCHEMA_VERSION;
+
+  localStorage.setItem("anki_full", JSON.stringify(db));
+
+  return db;
+}
+
 // ================= DATA =================
-let DB = JSON.parse(localStorage.getItem("anki_full")) || { semesters:[] };
+let DB = loadDB();
 
 let current = {semester:null,module:null,topic:null};
 let study = [];
@@ -210,6 +267,7 @@ function render(){
       addT.onclick=()=>{
         let name=prompt("Thema:");
         if(!name) return;
+        if(!m.topics) m.topics=[];
         m.topics.push({name,cards:[]});
         save();
       };
@@ -225,6 +283,7 @@ function render(){
     addM.onclick=()=>{
       let name=prompt("Modul:");
       if(!name) return;
+      if(!s.modules) s.modules=[];
       s.modules.push({name,topics:[]});
       save();
     };
