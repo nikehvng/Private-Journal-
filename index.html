@@ -10,7 +10,6 @@
   --card:#1e293b;
   --text:#e2e8f0;
   --border:#334155;
-  --input:#0b1220;
 }
 
 .light {
@@ -18,7 +17,6 @@
   --card:#ffffff;
   --text:#0f172a;
   --border:#cbd5e1;
-  --input:#ffffff;
 }
 
 body {
@@ -44,7 +42,6 @@ main {
   overflow:auto;
 }
 
-/* FIX: Buttons */
 button {
   margin:4px;
   padding:6px 10px;
@@ -55,7 +52,6 @@ button {
   color:var(--text);
 }
 
-/* 🔥 FIX: Inputs + Textareas (Hauptproblem) */
 input, textarea {
   width:100%;
   margin:5px 0;
@@ -64,14 +60,8 @@ input, textarea {
   border:1px solid var(--border);
   background:var(--card);
   color:var(--text);
-  outline:none;
 }
 
-input:focus, textarea:focus {
-  border:1px solid #60a5fa;
-}
-
-/* Cards */
 .card {
   background:var(--card);
   padding:15px;
@@ -80,7 +70,6 @@ input:focus, textarea:focus {
   border:1px solid var(--border);
 }
 
-/* Sidebar Items */
 .item {
   cursor:pointer;
   margin:5px 0;
@@ -90,8 +79,6 @@ input:focus, textarea:focus {
   border-radius:6px;
 }
 
-.small { font-size:12px; opacity:0.8; }
-
 .hidden { display:none; }
 </style>
 </head>
@@ -100,6 +87,7 @@ input:focus, textarea:focus {
 
 <aside>
 <button onclick="addSemester()">+ Semester</button>
+<button onclick="showDue()">📌 Fällige Karten</button>
 <div id="nav"></div>
 </aside>
 
@@ -133,8 +121,7 @@ input:focus, textarea:focus {
 
 <hr>
 
-<h3>Import (Text / Datei)</h3>
-<input type="file" id="fileInput" accept=".txt,.md">
+<h3>Import</h3>
 <textarea id="import"></textarea>
 <button onclick="smartImport()">Import</button>
 
@@ -172,18 +159,21 @@ function render(){
   DB.semesters.forEach((s)=>{
 
     if(!s.modules) s.modules=[];
-    let sDiv = document.createElement("div");
+
+    let sDiv=document.createElement("div");
     sDiv.className="item";
     sDiv.innerText="📚 "+s.name;
 
-    let modBox = document.createElement("div");
+    let modBox=document.createElement("div");
     modBox.style.display="none";
 
-    sDiv.onclick=()=>modBox.style.display = modBox.style.display==="none"?"block":"none";
+    sDiv.onclick=()=>modBox.style.display =
+      modBox.style.display==="none"?"block":"none";
 
     s.modules.forEach((m)=>{
 
       if(!m.topics) m.topics=[];
+
       let mDiv=document.createElement("div");
       mDiv.className="item";
       mDiv.innerText="📦 "+m.name;
@@ -193,10 +183,13 @@ function render(){
 
       mDiv.onclick=(e)=>{
         e.stopPropagation();
-        topicBox.style.display = topicBox.style.display==="none"?"block":"none";
+        topicBox.style.display =
+          topicBox.style.display==="none"?"block":"none";
       };
 
       m.topics.forEach((t)=>{
+
+        if(!t.cards) t.cards=[];
 
         let tDiv=document.createElement("div");
         tDiv.className="item";
@@ -242,7 +235,7 @@ function render(){
   });
 }
 
-// ================= CREATE =================
+// ================= SEMESTER =================
 function addSemester(){
   let name=prompt("Semester:");
   if(!name) return;
@@ -256,75 +249,113 @@ function update(){
   `${current.semester.name} > ${current.module.name} > ${current.topic.name}`;
 
   renderCards();
-  startStudy();
+  buildStudyQueue();
   updateProgress();
 }
 
-// ================= CARDS / STUDY / IMPORT =================
-// (unverändert – absichtlich nicht angefasst)
-
+// ================= ADD CARD =================
 function addCard(){
   if(!current.topic) return alert("Kein Thema");
 
+  if(!current.topic.cards) current.topic.cards=[];
+
   let q=document.getElementById("qInput").value;
   let a=document.getElementById("aInput").value;
-
   if(!q||!a) return;
 
-  current.topic.cards.push({q,a,next:0,interval:1});
+  current.topic.cards.push({
+    id: crypto.randomUUID(),
+    q,a,
+    interval:1,
+    next:Date.now()
+  });
 
   document.getElementById("qInput").value="";
   document.getElementById("aInput").value="";
 
   save();
   renderCards();
+  buildStudyQueue();
 }
 
+// ================= RENDER CARDS =================
 function renderCards(){
   let el=document.getElementById("cards");
   el.innerHTML="";
   if(!current.topic) return;
 
-  current.topic.cards.forEach((c,i)=>{
+  current.topic.cards.forEach((c)=>{
+
     let div=document.createElement("div");
     div.className="card";
+
     div.innerHTML=`
       <b>${c.q}</b><br>${c.a}
       <br>
-      <button onclick="edit(${i})">✏️</button>
-      <button onclick="del(${i})">🗑️</button>
+      <button onclick="editCard('${c.id}')">✏️</button>
+      <button onclick="del('${c.id}')">🗑️</button>
     `;
+
     el.appendChild(div);
   });
 }
 
-function edit(i){
-  let c=current.topic.cards[i];
+// ================= FIND CARD =================
+function findCard(id){
+  return current.topic.cards.find(c => c.id === id);
+}
+
+// ================= EDIT =================
+function editCard(id){
+  let c=findCard(id);
+  if(!c) return;
+
   let q=prompt("Frage:",c.q);
   let a=prompt("Antwort:",c.a);
+
   if(q&&a){
     c.q=q;
     c.a=a;
     save();
     renderCards();
+    buildStudyQueue();
   }
 }
 
-function del(i){
-  current.topic.cards.splice(i,1);
+// ================= DELETE =================
+function del(id){
+  current.topic.cards = current.topic.cards.filter(c=>c.id!==id);
   save();
   renderCards();
+  buildStudyQueue();
 }
 
-function startStudy(){
+// ================= STUDY QUEUE =================
+function buildStudyQueue(){
   if(!current.topic) return;
-  study=current.topic.cards;
+
+  let now=Date.now();
+
+  study=current.topic.cards
+    .filter(c=>c.next<=now)
+    .sort((a,b)=>a.next-b.next);
+
   index=0;
+
+  if(study.length===0){
+    document.getElementById("q").innerText="Keine fälligen Karten 🎉";
+    document.getElementById("a").innerText="";
+    return;
+  }
+
   show();
 }
 
+// ================= STUDY =================
 function show(){
   let c=study[index];
+  if(!c) return;
+
   document.getElementById("q").innerText=c.q;
   document.getElementById("a").innerText=c.a;
   document.getElementById("a").classList.add("hidden");
@@ -334,48 +365,91 @@ function showAnswer(){
   document.getElementById("a").classList.remove("hidden");
 }
 
+// ================= REVIEW =================
 function rate(v){
   let c=study[index];
+  if(!c) return;
+
   if(v===0) c.interval=1;
-  else c.interval=(c.interval||1)*2;
+  if(v===1) c.interval=Math.max(1,c.interval*2);
+  if(v===2) c.interval=c.interval*3;
+
   c.next=Date.now()+c.interval*86400000;
 
   index++;
-  if(index>=study.length) startStudy();
-  else show();
+
+  if(index>=study.length){
+    buildStudyQueue();
+  } else {
+    show();
+  }
 
   save();
   updateProgress();
 }
 
+// ================= PROGRESS =================
 function updateProgress(){
   if(!current.topic) return;
+
   let total=current.topic.cards.length;
   let due=current.topic.cards.filter(c=>c.next<=Date.now()).length;
+
   document.getElementById("progress").innerText =
   `${due} fällig / ${total} Karten`;
 }
 
-// IMPORT bleibt unverändert
-document.getElementById("fileInput").addEventListener("change", function(){
-  let r=new FileReader();
-  r.onload=e=>{
-    document.getElementById("import").value=e.target.result;
-  };
-  r.readAsText(this.files[0]);
-});
+// ================= FÄLLIGE KARTEN =================
+function showDue(){
+  let el=document.getElementById("cards");
+  el.innerHTML="<h3>📌 Fällige Karten</h3>";
 
+  let now=Date.now();
+
+  DB.semesters.forEach(s=>{
+    (s.modules||[]).forEach(m=>{
+      (m.topics||[]).forEach(t=>{
+        (t.cards||[]).forEach(c=>{
+          if(c.next<=now){
+            let div=document.createElement("div");
+            div.className="card";
+
+            div.innerHTML=`
+              <b>${c.q}</b><br>${c.a}
+              <br>
+              <button onclick="editCard('${c.id}')">✏️</button>
+            `;
+
+            el.appendChild(div);
+          }
+        });
+      });
+    });
+  });
+}
+
+// ================= IMPORT =================
 function smartImport(){
   if(!current.topic) return;
+
   let text=document.getElementById("import").value;
+
   text.split("\n").forEach(l=>{
     if(l.includes("?")){
       let [q,a]=l.split("?");
-      current.topic.cards.push({q:q+"?",a,a,next:0,interval:1});
+      current.topic.cards.push({
+        id: crypto.randomUUID(),
+        q:q+"?",
+        a,
+        interval:1,
+        next:Date.now()
+      });
     }
   });
+
   save();
   renderCards();
+  buildStudyQueue();
 }
 
 // ================= INIT =================
