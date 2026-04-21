@@ -3,161 +3,186 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>StudyFlow | Next-Gen Flashcards</title>
+    <title>StudyFlow Pro | Anki-GitHub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; transition: background-color 0.3s, color 0.3s; }
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .light .glass { background: rgba(0, 0, 0, 0.02); border: 1px solid rgba(0, 0, 0, 0.05); }
+        body { font-family: 'Inter', sans-serif; transition: all 0.3s ease; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .dark .glass-card { background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .light .glass-card { background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(0, 0, 0, 0.05); }
         .card-gradient { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
     </style>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: { extend: { colors: { darkBg: '#0f172a', lightBg: '#f8fafc' } } }
-        }
-    </script>
 </head>
-<body class="bg-darkBg text-slate-200 dark:bg-darkBg dark:text-slate-200 light:bg-lightBg light:text-slate-800 transition-all">
+<body class="bg-slate-950 text-slate-200 dark:bg-slate-950 dark:text-slate-200 light:bg-slate-50 light:text-slate-900">
 
     <div class="flex h-screen overflow-hidden">
-        <aside class="w-64 glass border-r flex flex-col p-6 gap-8">
-            <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 card-gradient rounded-xl flex items-center justify-center">
+        <aside class="w-72 glass border-r border-white/10 flex flex-col p-6 gap-8">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 card-gradient rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
                     <i data-lucide="brain-circuit" class="text-white"></i>
                 </div>
                 <span class="text-xl font-bold tracking-tight">StudyFlow</span>
             </div>
 
-            <nav class="flex flex-col gap-2">
-                <button onclick="showSection('learn')" class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 transition group">
+            <nav class="flex flex-col gap-2" id="main-nav">
+                <button onclick="renderLearnView()" class="nav-item flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition group">
                     <i data-lucide="play-circle" class="group-hover:text-indigo-400"></i> Lernen
                 </button>
-                <button onclick="showSection('semesters')" class="flex items-center gap-3 p-3 rounded-lg bg-indigo-600/20 text-indigo-400">
+                <button onclick="renderSemesterView()" class="nav-item flex items-center gap-3 p-3 rounded-xl bg-indigo-600/20 text-indigo-400">
                     <i data-lucide="layers"></i> Semester
-                </button>
-                <button class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 transition mt-10">
-                    <i data-lucide="plus-circle"></i> Neues Semester
                 </button>
             </nav>
 
+            <div class="mt-4 pt-4 border-t border-white/5">
+                <button onclick="promptCreateSemester()" class="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-white/20 hover:border-indigo-500 transition text-sm">
+                    <i data-lucide="plus-circle" class="w-4"></i> Semester anlegen
+                </button>
+            </div>
+
             <div class="mt-auto flex flex-col gap-4">
-                <button onclick="toggleDarkMode()" class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/10 transition">
+                <button onclick="toggleDarkMode()" class="flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition">
                     <i data-lucide="sun" id="theme-icon"></i> <span id="theme-text">Light Mode</span>
                 </button>
             </div>
         </aside>
 
-        <main class="flex-1 overflow-y-auto p-8">
-            
-            <header class="flex justify-between items-center mb-10">
-                <div>
-                    <h1 id="view-title" class="text-3xl font-bold">1. Semester</h1>
-                    <p class="text-slate-400">Deine Module im Überblick</p>
+        <main class="flex-1 overflow-y-auto p-10">
+            <header class="flex justify-between items-center mb-12">
+                <div id="breadcrumb">
+                    <h1 id="view-title" class="text-4xl font-extrabold tracking-tight mb-2">Semester Übersicht</h1>
+                    <p id="view-subtitle" class="text-slate-400">Wähle ein Semester aus, um zu lernen.</p>
                 </div>
-                <div class="flex gap-4">
-                    <button class="px-4 py-2 glass rounded-lg flex items-center gap-2 hover:border-indigo-500 transition">
-                        <i data-lucide="file-up" class="w-4"></i> NotebookLM Import
-                    </button>
-                </div>
+                <div id="header-actions"></div>
             </header>
 
-            <div id="content-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div onclick="drillDown('Mathematik')" class="glass p-6 rounded-2xl cursor-pointer hover:scale-[1.02] transition-transform border-b-4 border-indigo-500">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="p-3 bg-indigo-500/20 rounded-lg text-indigo-400">
-                            <i data-lucide="function-square"></i>
-                        </div>
-                        <span class="text-xs font-mono opacity-50">12 Themen</span>
-                    </div>
-                    <h3 class="text-xl font-semibold mb-2">Mathematik I</h3>
-                    <div class="w-full bg-white/10 h-1.5 rounded-full mt-4">
-                        <div class="bg-indigo-500 h-1.5 rounded-full" style="width: 45%"></div>
-                    </div>
+            <div id="main-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 </div>
-
-                <div onclick="drillDown('Informatik')" class="glass p-6 rounded-2xl cursor-pointer hover:scale-[1.02] transition-transform border-b-4 border-purple-500">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="p-3 bg-purple-500/20 rounded-lg text-purple-400">
-                            <i data-lucide="code-2"></i>
-                        </div>
-                        <span class="text-xs font-mono opacity-50">8 Themen</span>
-                    </div>
-                    <h3 class="text-xl font-semibold mb-2">Grundlagen Informatik</h3>
-                    <div class="w-full bg-white/10 h-1.5 rounded-full mt-4">
-                        <div class="bg-purple-500 h-1.5 rounded-full" style="width: 70%"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="card-editor" class="hidden mt-10">
-                <div class="glass p-8 rounded-3xl max-w-2xl mx-auto border-indigo-500/30 border-2">
-                    <h2 class="text-2xl font-bold mb-6">Neue Karte erstellen</h2>
-                    <div class="space-y-4">
-                        <textarea class="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:ring-2 ring-indigo-500 outline-none" placeholder="Vorderseite (Frage)..."></textarea>
-                        <textarea class="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:ring-2 ring-indigo-500 outline-none" rows="4" placeholder="Rückseite (Antwort)..."></textarea>
-                        
-                        <div class="grid grid-cols-5 gap-2 text-center text-xs">
-                            <div class="p-2 glass rounded border-indigo-500/50">1m</div>
-                            <div class="p-2 glass rounded">10m</div>
-                            <div class="p-2 glass rounded">1h</div>
-                            <div class="p-2 glass rounded">1d</div>
-                            <div class="p-2 glass rounded">3d</div>
-                        </div>
-                        
-                        <div class="flex gap-4 pt-4">
-                            <button class="flex-1 bg-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-500 transition">Speichern</button>
-                            <button onclick="toggleEditor()" class="px-6 py-3 glass rounded-xl">Abbrechen</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
         </main>
     </div>
 
     <script>
-        lucide.createIcons();
+        // --- State Management ---
+        let db = JSON.parse(localStorage.getItem('studyflow_db')) || { semesters: [] };
+        let currentPath = { semesterId: null, moduleId: null, topicId: null };
 
-        function toggleDarkMode() {
-            const html = document.documentElement;
-            const icon = document.getElementById('theme-icon');
-            const text = document.getElementById('theme-text');
+        function save() { localStorage.setItem('studyflow_db', JSON.stringify(db)); }
+
+        // --- Navigation & Rendering ---
+        function renderSemesterView() {
+            currentPath = { semesterId: null, moduleId: null, topicId: null };
+            document.getElementById('view-title').innerText = "Semester";
+            document.getElementById('view-subtitle').innerText = "Verwalte deine Studienabschnitte.";
             
-            if (html.classList.contains('dark')) {
-                html.classList.remove('dark');
-                html.classList.add('light');
-                icon.setAttribute('data-lucide', 'moon');
-                text.innerText = 'Dark Mode';
-            } else {
-                html.classList.remove('light');
-                html.classList.add('dark');
-                icon.setAttribute('data-lucide', 'sun');
-                text.innerText = 'Light Mode';
-            }
+            const grid = document.getElementById('main-grid');
+            grid.innerHTML = db.semesters.map((s, idx) => `
+                <div onclick="renderModuleView(${idx})" class="glass-card p-8 rounded-3xl cursor-pointer hover:border-indigo-500 transition group relative">
+                    <h3 class="text-2xl font-bold mb-2 group-hover:text-indigo-400">${s.name}</h3>
+                    <p class="text-slate-500 text-sm">${s.modules.length} Module hinterlegt</p>
+                    <div class="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition"><i data-lucide="arrow-right"></i></div>
+                </div>
+            `).join('');
             lucide.createIcons();
         }
 
-        function drillDown(name) {
-            document.getElementById('view-title').innerText = name;
-            // Hier würde normalerweise das Rendering der Themen-Boxen folgen
-            document.getElementById('content-grid').innerHTML = `
-                <div onclick="toggleEditor()" class="glass border-dashed border-2 border-indigo-500/50 p-10 rounded-2xl flex flex-col items-center justify-center gap-4 cursor-pointer hover:bg-indigo-500/10 transition">
-                    <i data-lucide="plus" class="w-10 h-10"></i>
-                    <span class="font-bold text-indigo-400">Neue Karte erstellen</span>
+        function renderModuleView(sIdx) {
+            currentPath.semesterId = sIdx;
+            const s = db.semesters[sIdx];
+            document.getElementById('view-title').innerText = s.name;
+            document.getElementById('view-subtitle').innerText = "Klicke auf ein Modul.";
+            
+            const grid = document.getElementById('main-grid');
+            grid.innerHTML = s.modules.map((m, mIdx) => `
+                <div onclick="renderTopicView(${sIdx}, ${mIdx})" class="glass-card p-8 rounded-3xl cursor-pointer hover:border-purple-500 transition border-b-4 border-purple-600">
+                    <h3 class="text-xl font-bold">${m.name}</h3>
+                </div>
+            `).join('') + `
+                <div onclick="promptCreateModule(${sIdx})" class="border-2 border-dashed border-white/10 p-8 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:bg-white/5">
+                    <i data-lucide="plus"></i> <span class="mt-2 text-sm">Modul hinzufügen</span>
                 </div>
             `;
             lucide.createIcons();
         }
 
-        function toggleEditor() {
-            const grid = document.getElementById('content-grid');
-            const editor = document.getElementById('card-editor');
-            grid.classList.toggle('hidden');
-            editor.classList.toggle('hidden');
+        function renderTopicView(sIdx, mIdx) {
+            currentPath.moduleId = mIdx;
+            const m = db.semesters[sIdx].modules[mIdx];
+            document.getElementById('view-title').innerText = m.name;
+            
+            const grid = document.getElementById('main-grid');
+            grid.innerHTML = `
+                <div onclick="showAddCardModal()" class="glass-card p-8 rounded-3xl border-2 border-dashed border-indigo-500/50 flex flex-col items-center justify-center cursor-pointer">
+                    <i data-lucide="plus-square" class="text-indigo-500 mb-2"></i>
+                    <span class="font-bold">Neue Karte</span>
+                </div>
+                ${m.cards ? m.cards.map(c => `
+                    <div class="glass-card p-6 rounded-2xl border-l-4 border-indigo-500">
+                        <p class="font-bold mb-2 text-sm opacity-60">FRAGE:</p>
+                        <p class="mb-4">${c.q}</p>
+                        <div class="flex gap-1">
+                            ${['1m','10m','1h','1d','3d'].map(t => `<span class="text-[10px] px-1.5 py-0.5 glass rounded">${t}</span>`).join('')}
+                        </div>
+                    </div>
+                `).join('') : ''}
+            `;
+            lucide.createIcons();
         }
+
+        function renderLearnView() {
+            document.getElementById('view-title').innerText = "Lern-Modus";
+            document.getElementById('view-subtitle').innerText = "Wähle deine Tags oder starte die Session.";
+            document.getElementById('main-grid').innerHTML = `
+                <div class="col-span-full glass-card p-20 rounded-[40px] text-center">
+                    <i data-lucide="sparkles" class="w-16 h-16 mx-auto mb-6 text-indigo-500"></i>
+                    <h2 class="text-3xl font-bold mb-4">Bereit zum Lernen?</h2>
+                    <p class="text-slate-400 mb-8 text-lg">Du hast aktuell 12 Karten fällig.</p>
+                    <button class="card-gradient px-12 py-4 rounded-2xl font-bold text-white shadow-xl shadow-indigo-500/20 hover:scale-105 transition">Jetzt Starten</button>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
+        // --- Creator Functions ---
+        function promptCreateSemester() {
+            const name = prompt("Name des Semesters (z.B. WS 2024):");
+            if(name) {
+                db.semesters.push({ name: name, modules: [] });
+                save();
+                renderSemesterView();
+            }
+        }
+
+        function promptCreateModule(sIdx) {
+            const name = prompt("Modulname (z.B. Analysis I):");
+            if(name) {
+                db.semesters[sIdx].modules.push({ name: name, cards: [] });
+                save();
+                renderModuleView(sIdx);
+            }
+        }
+
+        function showAddCardModal() {
+            const q = prompt("Frage:");
+            const a = prompt("Antwort:");
+            if(q && a) {
+                const m = db.semesters[currentPath.semesterId].modules[currentPath.moduleId];
+                if(!m.cards) m.cards = [];
+                m.cards.push({ q, a, nextReview: Date.now() });
+                save();
+                renderTopicView(currentPath.semesterId, currentPath.moduleId);
+            }
+        }
+
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            html.classList.toggle('dark');
+            html.classList.toggle('light');
+            lucide.createIcons();
+        }
+
+        // Init
+        renderSemesterView();
     </script>
 </body>
 </html>
